@@ -42,40 +42,68 @@ nessuna Action, nessun terminale necessario dopo il setup iniziale.
 5. Ricarica il sito (`https://<tuo-username>.github.io/<nome-repo>/`): la nuova
    riga apparirà automaticamente. GitHub Pages di solito si aggiorna in 30-60 secondi.
 
+## Struttura dei dati
+
+Il sito usa due file, ognuno con un solo compito:
+
+- **`data.csv`** → SOLO film. Colonne: `title,type,date_watched,rating,note`
+- **`seasons.csv`** → SOLO serie, una riga per ogni stagione. Colonne: `title,season,total_episodes,watched_episodes,date_watched,confidence`
+
+Non serve più inserire una serie in entrambi i file: il sito costruisce
+automaticamente la scheda di ogni serie aggregando tutte le righe di
+`seasons.csv` con lo stesso `title` (episodi totali, episodi visti, e la
+data più recente tra le sue stagioni).
+
+## Aggiungere un film visto
+
+Apri `data.csv` su GitHub e aggiungi una riga:
+
+```
+Titolo,Film,YYYY-MM-DD,voto,nota
+```
+
+Esempio:
+```
+Dune Part Two,Film,2026-07-01,9,Visto al cinema in IMAX
+```
+
+## Aggiungere una serie vista (o una nuova stagione)
+
+Apri `seasons.csv` e aggiungi una riga per ogni stagione:
+
+```
+title,season,total_episodes,watched_episodes,date_watched,confidence
+```
+
+Esempio (aggiungere una nuova serie "The Wire" con 2 stagioni viste):
+```
+The Wire,1,13,13,2026-05-01,
+The Wire,2,12,8,2026-06-15,
+```
+
+- Il `title` deve essere scritto uguale in tutte le righe della stessa serie.
+- `total_episodes` puoi lasciarlo vuoto se non lo conosci: il sito mostrerà
+  comunque gli episodi visti, solo senza barra di progresso.
+- `date_watched` è opzionale per singola riga: il sito usa la data più
+  recente tra tutte le stagioni della serie per l'ordinamento cronologico.
+- `confidence` è solo una tua nota personale (es. "verificato" o vuoto),
+  il sito non la usa e non la mostra.
+
 ## Come funziona
 
 `index.html` non fa nessuna build: al caricamento della pagina, il JavaScript
-scarica `data.csv` (e `seasons.csv`, se presente) direttamente dal repository
-(tramite la libreria PapaParse) e li trasforma in una lista con ricerca,
-filtro per tipo e ordinamento. Ogni volta che modifichi i CSV su GitHub, il
-sito pubblicato mostra subito i dati aggiornati, perché li legge "al volo"
-a ogni visita.
+scarica `data.csv` e `seasons.csv` direttamente dal repository (tramite la
+libreria PapaParse). I film vengono presi tali e quali da `data.csv`. Le
+serie vengono ricostruite raggruppando le righe di `seasons.csv` per titolo:
+il sito calcola da solo episodi visti/totali e la data più recente. Ogni
+volta che modifichi i CSV su GitHub, il sito pubblicato mostra subito i dati
+aggiornati.
 
-## Aggiungere il dettaglio delle stagioni (solo per le Serie)
+## Aggiungere il dettaglio delle stagioni
 
-Apri (o crea) il file `seasons.csv` nel repo con queste colonne:
-
-```
-title,season,total_episodes,watched_episodes
-```
-
-Una riga per ogni stagione. Esempio:
-
-```
-Breaking Bad,1,7,7
-Breaking Bad,2,13,13
-Breaking Bad,3,13,13
-Breaking Bad,4,13,13
-Breaking Bad,5,16,10
-```
-
-Importante: il `title` deve essere scritto **esattamente come in `data.csv`**
-(le maiuscole/minuscole non contano, ma il testo deve corrispondere).
-Se una serie non compare in `seasons.csv`, viene mostrata come prima senza
-dettaglio stagioni — nessun obbligo di compilarlo per tutto.
-
-Nel sito, cliccando sulla riga della serie si apre l'elenco delle stagioni
-con una barra di progresso (episodi visti / episodi totali) per ciascuna.
+Cliccando sulla riga di una serie (quella con la freccia ▶) si apre
+l'elenco delle stagioni con una barra di progresso (episodi visti / episodi
+totali) per ciascuna, calcolata automaticamente da `seasons.csv`.
 
 ## Link a Wikipedia
 
