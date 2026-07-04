@@ -152,7 +152,7 @@
 <body>
 <div class="wrap">
   <h1>📺 Cosa ho visto</h1>
-  <div class="subtitle">Lista aggiornata automaticamente da <code>data.csv</code> e <code>seasons.csv</code></div>
+  <div class="subtitle">Film da <code>data.csv</code> · Serie da <code>seasons.csv</code></div>
 
   <div class="stats" id="stats"></div>
 
@@ -177,12 +177,9 @@
 </div>
 
 <script>
-let allData = [];
-let seasonsByTitle = {}; // title -> [ {season, total_episodes, watched_episodes}, ... ]
+let allData = []; // lista unificata di film + serie, pronta per render
 
 function wikipediaUrl(title) {
-  // Link diretto al titolo su Wikipedia IT; se non esiste una pagina con
-  // quel nome esatto, Wikipedia stessa reindirizza alla ricerca migliore.
   const clean = title.trim().replace(/ /g, '_');
   return 'https://it.wikipedia.org/wiki/' + encodeURIComponent(clean);
 }
@@ -200,10 +197,10 @@ function render() {
 
   filtered.sort((a, b) => {
     switch (sortBy) {
-      case 'date_desc': return new Date(b.date_watched) - new Date(a.date_watched);
-      case 'date_asc': return new Date(a.date_watched) - new Date(b.date_watched);
-      case 'rating_desc': return parseFloat(b.rating) - parseFloat(a.rating);
-      case 'rating_asc': return parseFloat(a.rating) - parseFloat(b.rating);
+      case 'date_desc': return new Date(b.date_watched || 0) - new Date(a.date_watched || 0);
+      case 'date_asc': return new Date(a.date_watched || 0) - new Date(b.date_watched || 0);
+      case 'rating_desc': return parseFloat(b.rating || 0) - parseFloat(a.rating || 0);
+      case 'rating_asc': return parseFloat(a.rating || 0) - parseFloat(b.rating || 0);
       case 'title_asc': return a.title.localeCompare(b.title);
     }
   });
@@ -215,30 +212,26 @@ function render() {
   }
 
   list.innerHTML = filtered.map((item, idx) => {
-    const seasons = seasonsByTitle[item.title.toLowerCase()];
-    const hasSeasons = seasons && seasons.length > 0;
+    const hasSeasons = item.seasons && item.seasons.length > 0;
     const rowId = 'seasons-' + idx;
 
     let seasonsHtml = '';
     if (hasSeasons) {
-      let totalEp = 0, watchedEp = 0;
-      const rows = seasons.map(s => {
+      const rows = item.seasons.map(s => {
         const total = parseInt(s.total_episodes) || 0;
         const watched = Math.min(parseInt(s.watched_episodes) || 0, total || Infinity);
-        totalEp += total;
-        watchedEp += watched;
         const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
         return `
           <div class="season-row">
             <div class="season-label">Stagione ${escapeHtml(String(s.season))}</div>
             <div class="season-bar-bg"><div class="season-bar-fill" style="width:${pct}%"></div></div>
-            <div class="season-count">${watched}/${total}</div>
+            <div class="season-count">${total ? watched + '/' + total : watched}</div>
           </div>`;
       }).join('');
       seasonsHtml = `
         <div class="seasons" id="${rowId}">
           ${rows}
-          <div class="season-total">${watchedEp} / ${totalEp} episodi totali visti</div>
+          <div class="season-total">${item.note}</div>
         </div>`;
     }
 
@@ -251,7 +244,7 @@ function render() {
             <span class="item-title">${escapeHtml(item.title)}</span>
             <a class="wiki-link" href="${wikipediaUrl(item.title)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Wikipedia ↗</a>
           </div>
-          ${item.note ? `<div class="item-note">${escapeHtml(item.note)}</div>` : ''}
+          ${(!hasSeasons && item.note) ? `<div class="item-note">${escapeHtml(item.note)}</div>` : ''}
         </div>
         <div class="item-meta">
           <span class="badge ${item.type}">${item.type}</span>
@@ -294,7 +287,6 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Cache-busting per evitare che il browser mostri una versione vecchia dei CSV
 const ts = Date.now();
 
 function loadCsv(file) {
@@ -311,20 +303,48 @@ function loadCsv(file) {
 
 Promise.all([
   loadCsv('data.csv'),
-  loadCsv('seasons.csv').catch(() => []) // seasons.csv è opzionale
-]).then(([data, seasons]) => {
-  allData = data.filter(d => d.title);
+  loadCsv('seasons.csv').catch(() => [])
+]).then(([filmRows, seasonRows]) => {
+  // Film: presi direttamente da data.csv
+  const films = filmRows.filter(r => r.title).map(r => ({
+    title: r.title,
+    type: 'Film',
+    date_watched: r.date_watched,
+    rating: r.rating,
+    note: r.note,
+    seasons: null,
+  }));
 
-  seasonsByTitle = {};
-  seasons.filter(s => s.title).forEach(s => {
-    const key = s.title.trim().toLowerCase();
-    if (!seasonsByTitle[key]) seasonsByTitle[key] = [];
-    seasonsByTitle[key].push(s);
-  });
-  Object.values(seasonsByTitle).forEach(arr => {
-    arr.sort((a, b) => parseInt(a.season) - parseInt(b.season));
+  // Serie: costruite aggregando seasons.csv per titolo
+  const byTitle = {};
+  seasonRows.filter(r => r.title).forEach(r => {
+    const key = r.title.trim();
+    if (!byTitle[key]) byTitle[key] = [];
+    byTitle[key].push(r);
   });
 
+  const series = Object.entries(byTitle).map(([title, rows]) => {
+    rows.sort((a, b) => parseInt(a.season) - parseInt(b.season));
+    let totalEp = 0, watchedEp = 0, hasTotal = false;
+    rows.forEach(r => {
+      const t = parseInt(r.total_episodes) || 0;
+      const w = parseInt(r.watched_episodes) || 0;
+      if (t > 0) { totalEp += t; hasTotal = true; }
+      watchedEp += w;
+    });
+    const date = rows.map(r => r.date_watched).filter(Boolean).sort().pop() || '';
+    const note = hasTotal ? `${watchedEp} / ${totalEp} episodi totali visti` : `${watchedEp} episodi visti`;
+    return {
+      title,
+      type: 'Serie',
+      date_watched: date,
+      rating: '',
+      note,
+      seasons: rows,
+    };
+  });
+
+  allData = films.concat(series);
   render();
 }).catch(err => {
   document.getElementById('error').textContent = 'Errore nel caricamento dei CSV: ' + err.message;
