@@ -46,25 +46,53 @@ nessuna Action, nessun terminale necessario dopo il setup iniziale.
 
 Il sito usa due file, ognuno con un solo compito:
 
-- **`data.csv`** → SOLO film. Colonne: `title,type,date_watched,rating,note`
-- **`seasons.csv`** → SOLO serie, una riga per ogni stagione. Colonne: `title,season,total_episodes,watched_episodes,date_watched,confidence`
+- **`data.csv`** → SOLO film. Colonne: `title,type,date_watched,rating,note,status`
+- **`seasons.csv`** → SOLO serie, una riga per ogni stagione. Colonne: `title,season,total_episodes,watched_episodes,date_watched`
 
-Non serve più inserire una serie in entrambi i file: il sito costruisce
-automaticamente la scheda di ogni serie aggregando tutte le righe di
-`seasons.csv` con lo stesso `title` (episodi totali, episodi visti, e la
-data più recente tra le sue stagioni).
+## Segnare un film come "da vedere" (non ancora visto)
+
+Nella colonna `status` di `data.csv`, scrivi `NV` (Non Visto). Lascia le
+altre colonne vuote (non ha senso avere una data di visione o un voto per
+qualcosa che non hai ancora visto):
+
+```
+Dune: Part Three,Film,,,,NV
+```
+
+Se `status` è vuoto, il film viene considerato visto normalmente.
+
+## Segnare una serie come "da vedere"
+
+Basta NON metterla in `seasons.csv`, oppure metterla con `watched_episodi=0`
+in tutte le sue righe:
+
+```
+The Wire,1,,0,
+```
+
+Il sito riconosce automaticamente che una serie è "da vedere" quando la
+somma degli episodi visti in tutte le sue stagioni è zero. Appena aggiungi
+almeno un episodio visto (`watched_episodes` > 0 in una qualsiasi riga),
+la serie si sposta da sola nella sezione principale.
+
+## Le due sezioni del sito
+
+- **Sezione principale** (in alto): tutto ciò che hai già visto, con
+  ricerca, filtro per tipo, ordinamento e dettaglio stagioni per le serie.
+- **📌 Da vedere** (in basso): film con `status=NV` e serie con 0 episodi
+  visti, in una lista semplice con ricerca e filtro propri.
 
 ## Aggiungere un film visto
 
 Apri `data.csv` su GitHub e aggiungi una riga:
 
 ```
-Titolo,Film,YYYY-MM-DD,voto,nota
+Titolo,Film,YYYY-MM-DD,voto,nota,
 ```
 
 Esempio:
 ```
-Dune Part Two,Film,2026-07-01,9,Visto al cinema in IMAX
+Dune Part Two,Film,2026-07-01,9,Visto al cinema in IMAX,
 ```
 
 ## Aggiungere una serie vista (o una nuova stagione)
@@ -72,13 +100,13 @@ Dune Part Two,Film,2026-07-01,9,Visto al cinema in IMAX
 Apri `seasons.csv` e aggiungi una riga per ogni stagione:
 
 ```
-title,season,total_episodes,watched_episodes,date_watched,confidence
+title,season,total_episodes,watched_episodes,date_watched
 ```
 
 Esempio (aggiungere una nuova serie "The Wire" con 2 stagioni viste):
 ```
-The Wire,1,13,13,2026-05-01,
-The Wire,2,12,8,2026-06-15,
+The Wire,1,13,13,2026-05-01
+The Wire,2,12,8,2026-06-15
 ```
 
 - Il `title` deve essere scritto uguale in tutte le righe della stessa serie.
@@ -86,8 +114,6 @@ The Wire,2,12,8,2026-06-15,
   comunque gli episodi visti, solo senza barra di progresso.
 - `date_watched` è opzionale per singola riga: il sito usa la data più
   recente tra tutte le stagioni della serie per l'ordinamento cronologico.
-- `confidence` è solo una tua nota personale (es. "verificato" o vuoto),
-  il sito non la usa e non la mostra.
 
 ## Come funziona
 
@@ -95,13 +121,14 @@ The Wire,2,12,8,2026-06-15,
 scarica `data.csv` e `seasons.csv` direttamente dal repository (tramite la
 libreria PapaParse). I film vengono presi tali e quali da `data.csv`. Le
 serie vengono ricostruite raggruppando le righe di `seasons.csv` per titolo:
-il sito calcola da solo episodi visti/totali e la data più recente. Ogni
-volta che modifichi i CSV su GitHub, il sito pubblicato mostra subito i dati
-aggiornati.
+il sito calcola da solo episodi visti/totali e la data più recente. In base
+allo `status` e alla somma degli episodi visti, ogni titolo finisce nella
+sezione "visti" o "da vedere". Ogni volta che modifichi i CSV su GitHub, il
+sito pubblicato mostra subito i dati aggiornati.
 
 ## Aggiungere il dettaglio delle stagioni
 
-Cliccando sulla riga di una serie (quella con la freccia ▶) si apre
+Cliccando sulla riga di una serie vista (quella con la freccia ▶) si apre
 l'elenco delle stagioni con una barra di progresso (episodi visti / episodi
 totali) per ciascuna, calcolata automaticamente da `seasons.csv`.
 
