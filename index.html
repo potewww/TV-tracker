@@ -32,6 +32,19 @@
     background-clip: text;
     color: transparent;
   }
+  h2.section-title {
+    font-size: 18px;
+    margin: 32px 0 12px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2.section-title .count {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 400;
+  }
   .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
 
   .controls {
@@ -145,6 +158,24 @@
     text-align: right;
   }
 
+  .todo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .todo-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+  }
+  .todo-title { flex: 1; }
+
   .empty { text-align: center; color: var(--muted); padding: 40px 0; }
   #error { color: #ff7675; text-align: center; padding: 20px; }
 </style>
@@ -173,15 +204,34 @@
   </div>
 
   <div id="list"></div>
+
+  <h2 class="section-title">📌 Da vedere <span class="count" id="todo-count"></span></h2>
+  <div class="controls">
+    <input type="text" id="todo-search" placeholder="Cerca nella lista da vedere..." />
+    <select id="todo-filterType">
+      <option value="">Tutti i tipi</option>
+      <option value="Film">Film</option>
+      <option value="Serie">Serie</option>
+    </select>
+  </div>
+  <div id="todo-list" class="todo-grid"></div>
+
   <div id="error"></div>
 </div>
 
 <script>
-let allData = []; // lista unificata di film + serie, pronta per render
+let allData = [];   // visti (film + serie con almeno 1 episodio/visione)
+let todoData = [];  // da vedere (film con status NV, serie con 0 episodi visti)
 
 function wikipediaUrl(title) {
   const clean = title.trim().replace(/ /g, '_');
   return 'https://it.wikipedia.org/wiki/' + encodeURIComponent(clean);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function render() {
@@ -259,6 +309,34 @@ function render() {
   renderStats(allData);
 }
 
+function renderTodo() {
+  const search = document.getElementById('todo-search').value.toLowerCase();
+  const type = document.getElementById('todo-filterType').value;
+
+  let filtered = todoData.filter(item => {
+    const matchSearch = item.title.toLowerCase().includes(search);
+    const matchType = !type || item.type === type;
+    return matchSearch && matchType;
+  });
+  filtered.sort((a, b) => a.title.localeCompare(b.title));
+
+  document.getElementById('todo-count').textContent = `(${todoData.length})`;
+
+  const list = document.getElementById('todo-list');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">Niente da vedere per ora 🎉</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(item => `
+    <div class="todo-item">
+      <span class="todo-title">${escapeHtml(item.title)}</span>
+      <span class="badge ${item.type}">${item.type}</span>
+      <a class="wiki-link" href="${wikipediaUrl(item.title)}" target="_blank" rel="noopener">Wiki ↗</a>
+    </div>
+  `).join('');
+}
+
 function toggleSeasons(rowId, rowEl) {
   const el = document.getElementById(rowId);
   const arrow = rowEl.querySelector('.expand-arrow');
@@ -274,17 +352,11 @@ function renderStats(data) {
   const avgRating = rated.length ? (rated.reduce((s, d) => s + parseFloat(d.rating || 0), 0) / rated.length).toFixed(1) : '-';
 
   document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="num">${total}</div><div class="label">Totali</div></div>
+    <div class="stat"><div class="num">${total}</div><div class="label">Visti</div></div>
     <div class="stat"><div class="num">${films}</div><div class="label">Film</div></div>
     <div class="stat"><div class="num">${series}</div><div class="label">Serie</div></div>
     <div class="stat"><div class="num">${avgRating}</div><div class="label">Voto medio</div></div>
   `;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 const ts = Date.now();
@@ -305,8 +377,10 @@ Promise.all([
   loadCsv('data.csv'),
   loadCsv('seasons.csv').catch(() => [])
 ]).then(([filmRows, seasonRows]) => {
-  // Film: presi direttamente da data.csv
-  const films = filmRows.filter(r => r.title).map(r => ({
+  const validFilms = filmRows.filter(r => r.title);
+
+  // Film visti: status vuoto o diverso da NV
+  const watchedFilms = validFilms.filter(r => (r.status || '').trim().toUpperCase() !== 'NV').map(r => ({
     title: r.title,
     type: 'Film',
     date_watched: r.date_watched,
@@ -315,7 +389,13 @@ Promise.all([
     seasons: null,
   }));
 
-  // Serie: costruite aggregando seasons.csv per titolo
+  // Film da vedere: status = NV
+  const todoFilms = validFilms.filter(r => (r.status || '').trim().toUpperCase() === 'NV').map(r => ({
+    title: r.title,
+    type: 'Film',
+  }));
+
+  // Serie: raggruppa seasons.csv per titolo
   const byTitle = {};
   seasonRows.filter(r => r.title).forEach(r => {
     const key = r.title.trim();
@@ -323,7 +403,10 @@ Promise.all([
     byTitle[key].push(r);
   });
 
-  const series = Object.entries(byTitle).map(([title, rows]) => {
+  const watchedSeries = [];
+  const todoSeries = [];
+
+  Object.entries(byTitle).forEach(([title, rows]) => {
     rows.sort((a, b) => parseInt(a.season) - parseInt(b.season));
     let totalEp = 0, watchedEp = 0, hasTotal = false;
     rows.forEach(r => {
@@ -332,20 +415,30 @@ Promise.all([
       if (t > 0) { totalEp += t; hasTotal = true; }
       watchedEp += w;
     });
+
+    if (watchedEp === 0) {
+      // nessun episodio visto in nessuna stagione -> da vedere
+      todoSeries.push({ title, type: 'Serie' });
+      return;
+    }
+
     const date = rows.map(r => r.date_watched).filter(Boolean).sort().pop() || '';
     const note = hasTotal ? `${watchedEp} / ${totalEp} episodi totali visti` : `${watchedEp} episodi visti`;
-    return {
+    watchedSeries.push({
       title,
       type: 'Serie',
       date_watched: date,
       rating: '',
       note,
       seasons: rows,
-    };
+    });
   });
 
-  allData = films.concat(series);
+  allData = watchedFilms.concat(watchedSeries);
+  todoData = todoFilms.concat(todoSeries);
+
   render();
+  renderTodo();
 }).catch(err => {
   document.getElementById('error').textContent = 'Errore nel caricamento dei CSV: ' + err.message;
 });
@@ -353,6 +446,8 @@ Promise.all([
 document.getElementById('search').addEventListener('input', render);
 document.getElementById('filterType').addEventListener('change', render);
 document.getElementById('sortBy').addEventListener('change', render);
+document.getElementById('todo-search').addEventListener('input', renderTodo);
+document.getElementById('todo-filterType').addEventListener('change', renderTodo);
 </script>
 </body>
 </html>
