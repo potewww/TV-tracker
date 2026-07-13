@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Le mie serie e film visti</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --accent: #6c5ce7;
+    --accent2: #00cec9;
+    --text: #e8e8f0;
+    --muted: #9297ab;
+    --border: #2a2d3a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 {
+    font-size: 28px;
+    margin-bottom: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  h2.section-title {
+    font-size: 18px;
+    margin: 32px 0 12px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2.section-title .count {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  input, select {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  input[type="text"] { flex: 1; min-width: 180px; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    min-width: 100px;
+  }
+  .stat .num { font-size: 22px; font-weight: 700; color: var(--accent2); }
+  .stat .label { font-size: 12px; color: var(--muted); }
+
+  .item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    cursor: default;
+  }
+  .item-row.has-seasons { cursor: pointer; }
+  .item-poster {
+    width: 46px;
+    height: 69px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .item-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .item-poster .placeholder { font-size: 18px; opacity: 0.4; }
+  .item-main { flex: 1; }
+  .item-title-line { display: flex; align-items: center; gap: 8px; }
+  .item-title { font-weight: 600; font-size: 16px; }
+  .wiki-link {
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .wiki-link:hover { color: var(--accent2); border-color: var(--accent2); }
+  .item-note { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .item-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .badge.Film { background: rgba(108,92,231,0.2); color: var(--accent); }
+  .badge.Serie { background: rgba(0,206,201,0.2); color: var(--accent2); }
+  .rating { font-size: 14px; color: #f1c40f; font-weight: 700; }
+  .date { font-size: 12px; color: var(--muted); }
+  .expand-arrow { color: var(--muted); font-size: 12px; transition: transform 0.2s; }
+  .expand-arrow.open { transform: rotate(90deg); }
+
+  .seasons {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .seasons.open { display: block; }
+  .season-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .season-label { width: 90px; color: var(--muted); flex-shrink: 0; }
+  .season-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .season-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 4px;
+  }
+  .season-count { width: 70px; text-align: right; color: var(--muted); flex-shrink: 0; }
+  .season-total {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  .todo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .todo-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+  }
+  .todo-title { flex: 1; }
+  .todo-poster {
+    width: 28px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .todo-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .todo-poster .placeholder { font-size: 12px; opacity: 0.4; }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+  #error { color: #ff7675; text-align: center; padding: 20px; }
+
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .icon-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { border-color: var(--accent); }
+
+  .btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover { opacity: 0.9; }
+  .btn.secondary {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn.danger { background: #e74c3c; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .item-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .mini-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    cursor: pointer;
+  }
+  .mini-btn:hover { color: var(--text); border-color: var(--accent); }
+  .todo-item { flex-wrap: wrap; }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 420px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-box h3 { margin: 0 0 16px; font-size: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select { width: 100%; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .modal-hint { font-size: 12px; color: var(--muted); margin: -8px 0 14px; line-height: 1.4; }
+  .modal-status { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .modal-status.error { color: #ff7675; }
+  .modal-status.success { color: #55efc4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header-row">
+    <div>
+      <h1>📺 Cosa ho visto</h1>
+      <div class="subtitle">Film da <code>films.csv</code> · Serie da <code>TVseries.csv</code></div>
+    </div>
+    <button class="icon-btn" id="settingsBtn" title="Impostazioni GitHub">⚙️</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="controls">
+    <input type="text" id="search" placeholder="Cerca titolo..." />
+    <select id="filterType">
+      <option value="">Tutti i tipi</option>
+      <option value="Film">Film</option>
+      <option value="Serie">Serie</option>
+    </select>
+    <select id="sortBy">
+      <option value="date_desc">Data (più recente)</option>
+      <option value="date_asc">Data (meno recente)</option>
+      <option value="rating_desc">Voto (alto→basso)</option>
+      <option value="rating_asc">Voto (basso→alto)</option>
+      <option value="title_asc">Titolo (A-Z)</option>
+    </select>
+    <button class="btn" id="addFilmBtn">+ Film</button>
+    <button class="btn" id="addSeriesBtn">+ Serie</button>
+  </div>
+
+  <div id="list"></div>
+
+  <h2 class="section-title">📌 Da vedere <span class="count" id="todo-count"></span></h2>
+  <div class="controls">
+    <input type="text" id="todo-search" placeholder="Cerca nella lista da vedere..." />
+    <select id="todo-filterType">
+      <option value="">Tutti i tipi</option>
+      <option value="Film">Film</option>
+      <option value="Serie">Serie</option>
+    </select>
+  </div>
+  <div id="todo-list" class="todo-grid"></div>
+
+  <div id="error"></div>
+</div>
+
+<!-- Modal generico riutilizzato per tutte le finestre -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<script>
+let allData = [];   // visti (film + serie con almeno 1 episodio/visione)
+let todoData = [];  // da vedere (film senza data, serie con 0 episodi visti)
+
+// ---- Locandine (OMDb) ----
+// Crea una API key gratuita su https://www.omdbapi.com/apikey.aspx (basta un'email)
+// e incollala qui sotto per abilitare le locandine.
+const OMDB_API_KEY = '995b45fd';
+const OMDB_CACHE_PREFIX = 'poster_cache_omdb_v1:';
+
+function posterKey(item) {
+  return item.type + '|' + item.title;
+}
+
+function getCachedPoster(key) {
+  const raw = localStorage.getItem(OMDB_CACHE_PREFIX + key);
+  if (raw === null) return undefined; // mai cercata
+  try { return JSON.parse(raw); } catch { return undefined; }
+}
+
+function setCachedPoster(key, url) {
+  try {
+    localStorage.setItem(OMDB_CACHE_PREFIX + key, JSON.stringify(url));
+  } catch (e) { /* storage pieno o non disponibile: ignora */ }
+}
+
+async function fetchPosterUrl(item) {
+  if (!OMDB_API_KEY || OMDB_API_KEY.startsWith('INSERISCI')) return { retry: false, url: null };
+  const kind = item.type === 'Serie' ? 'series' : 'movie';
+  const endpoint = `https://www.omdbapi.com/?apikey=${OMDB_API_KEY}&type=${kind}&t=${encodeURIComponent(item.title)}`;
+  try {
+    const res = await fetch(endpoint);
+    if (!res.ok) return { retry: true, url: null }; // errore di rete/HTTP: da ritentare
+    const data = await res.json();
+    if (data.Response === 'True' && data.Poster && data.Poster !== 'N/A') {
+      return { retry: false, url: data.Poster };
+    }
+    if (data.Error && /limit/i.test(data.Error)) {
+      return { retry: true, url: null }; // rate limit raggiunto: da ritentare più avanti
+    }
+    return { retry: false, url: null }; // film/serie genuinamente non trovato su OMDb
+  } catch (e) {
+    return { retry: true, url: null }; // errore di rete: da ritentare
+  }
+}
+
+async function loadPostersFor(items) {
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (item) => {
+      const key = posterKey(item);
+      const cached = getCachedPoster(key);
+
+      if (cached !== undefined) {
+        // Già in cache: null = cercata in passato e genuinamente non trovata
+        if (cached) item.poster = cached;
+        return;
+      }
+
+      const result = await fetchPosterUrl(item);
+      if (!result.retry) {
+        // Trovata, oppure genuinamente non trovata: salva in cache (anche se null)
+        setCachedPoster(key, result.url);
+      }
+      // Se result.retry è true, non salviamo nulla: verrà ritentata al prossimo caricamento
+      if (result.url) item.poster = result.url;
+    }));
+
+    // Ridisegna la lista a ogni lotto così le locandine compaiono progressivamente
+    render();
+    renderTodo();
+
+    // Piccola pausa tra i lotti per non stressare l'API
+    await new Promise(r => setTimeout(r, 150));
+  }
+}
+
+function wikipediaUrl(title) {
+  const clean = title.trim().replace(/ /g, '_');
+  return 'https://it.wikipedia.org/wiki/' + encodeURIComponent(clean);
+}
+
+// ================== Integrazione GitHub (salvataggio diretto sul repo) ==================
+
+const GH_SETTINGS_KEY = 'gh_settings_v1';
+
+function getGhSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(GH_SETTINGS_KEY)) || {};
+  } catch { return {}; }
+}
+
+function saveGhSettings(s) {
+  localStorage.setItem(GH_SETTINGS_KEY, JSON.stringify(s));
+}
+
+function ghConfigured() {
+  const s = getGhSettings();
+  return !!(s.token && s.owner && s.repo && s.branch);
+}
+
+// Codifica/decodifica base64 sicura per UTF-8
+function b64EncodeUnicode(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function b64DecodeUnicode(str) {
+  return decodeURIComponent(escape(atob(str)));
+}
+
+async function ghGetFile(path) {
+  const s = getGhSettings();
+  const url = `https://api.github.com/repos/${s.owner}/${s.repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(s.branch)}&_t=${Date.now()}`;
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': `token ${s.token}`,
+      'Accept': 'application/vnd.github+json'
+    }
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`GitHub GET fallito (${res.status}): ${body.message || res.statusText}`);
+  }
+  const data = await res.json();
+  const content = b64DecodeUnicode(data.content.replace(/\n/g, ''));
+  return { content, sha: data.sha };
+}
+
+async function ghPutFile(path, newContent, sha, message) {
+  const s = getGhSettings();
+  const url = `https://api.github.com/repos/${s.owner}/${s.repo}/contents/${encodeURIComponent(path)}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${s.token}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: message,
+      content: b64EncodeUnicode(newContent),
+      sha: sha,
+      branch: s.branch
+    })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`GitHub PUT fallito (${res.status}): ${body.message || res.statusText}`);
+  }
+  return res.json();
+}
+
+// Legge un CSV dal repo, applica una trasformazione alle righe, lo riscrive.
+// transformFn riceve l'array di righe (oggetti) e ne restituisce uno nuovo.
+async function ghUpdateCsv(path, transformFn, commitMessage, fieldOrder) {
+  const { content, sha } = await ghGetFile(path);
+  const parsed = Papa.parse(content, { header: true, skipEmptyLines: true });
+  const newRows = transformFn(parsed.data);
+  const csvText = Papa.unparse(newRows, { columns: fieldOrder });
+  await ghPutFile(path, csvText, sha, commitMessage);
+}
+
+// ---- Modal helpers ----
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.getElementById('modalBox').innerHTML = '';
+}
+
+function openModal(html) {
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'modalOverlay') closeModal();
+});
+
+// ---- Modal: Impostazioni GitHub ----
+function openSettingsModal() {
+  const s = getGhSettings();
+  openModal(`
+    <h3>⚙️ Impostazioni GitHub</h3>
+    <div class="modal-hint">
+      Serve un Personal Access Token (fine-grained) con permesso "Contents: Read and write" sul repo del sito.
+      Il token resta salvato solo in questo browser.
+    </div>
+    <div class="field">
+      <label>Token</label>
+      <input type="password" id="s_token" value="${escapeHtml(s.token || '')}" placeholder="github_pat_..." />
+    </div>
+    <div class="field">
+      <label>Utente/organizzazione GitHub</label>
+      <input type="text" id="s_owner" value="${escapeHtml(s.owner || '')}" placeholder="es. filippo123" />
+    </div>
+    <div class="field">
+      <label>Nome repository</label>
+      <input type="text" id="s_repo" value="${escapeHtml(s.repo || '')}" placeholder="es. filmi-serie" />
+    </div>
+    <div class="field">
+      <label>Branch</label>
+      <input type="text" id="s_branch" value="${escapeHtml(s.branch || 'main')}" placeholder="main" />
+    </div>
+    <div class="modal-status" id="modalStatus"></div>
+    <div class="modal-actions">
+      <button class="btn danger secondary" id="s_clear">Cancella token</button>
+      <button class="btn secondary" onclick="closeModal()">Chiudi</button>
+      <button class="btn" id="s_save">Salva</button>
+    </div>
+  `);
+  document.getElementById('s_save').addEventListener('click', () => {
+    saveGhSettings({
+      token: document.getElementById('s_token').value.trim(),
+      owner: document.getElementById('s_owner').value.trim(),
+      repo: document.getElementById('s_repo').value.trim(),
+      branch: document.getElementById('s_branch').value.trim() || 'main',
+    });
+    document.getElementById('modalStatus').textContent = 'Salvato ✓';
+    document.getElementById('modalStatus').className = 'modal-status success';
+  });
+  document.getElementById('s_clear').addEventListener('click', () => {
+    localStorage.removeItem(GH_SETTINGS_KEY);
+    closeModal();
+  });
+}
+
+function requireGhOrPrompt() {
+  if (!ghConfigured()) {
+    openSettingsModal();
+    document.getElementById('modalStatus').textContent = 'Configura prima le impostazioni GitHub.';
+    document.getElementById('modalStatus').className = 'modal-status error';
+    return false;
+  }
+  return true;
+}
+
+// ---- Modal: Aggiungi film ----
+function openAddFilmModal() {
+  if (!requireGhOrPrompt()) return;
+  openModal(`
+    <h3>+ Aggiungi film</h3>
+    <div class="field"><label>Titolo *</label><input type="text" id="f_title" /></div>
+    <div class="field"><label>Data visione (vuoto = da vedere)</label><input type="date" id="f_date" /></div>
+    <div class="field"><label>Voto (opzionale)</label><input type="number" id="f_rating" min="0" max="10" step="0.5" /></div>
+    <div class="field"><label>Nota (opzionale)</label><input type="text" id="f_note" /></div>
+    <div class="modal-status" id="modalStatus"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn" id="f_save">Salva su GitHub</button>
+    </div>
+  `);
+  document.getElementById('f_save').addEventListener('click', async () => {
+    const title = document.getElementById('f_title').value.trim();
+    const statusEl = document.getElementById('modalStatus');
+    if (!title) {
+      statusEl.textContent = 'Il titolo è obbligatorio.';
+      statusEl.className = 'modal-status error';
+      return;
+    }
+    const newRow = {
+      title,
+      date_watched: document.getElementById('f_date').value || '',
+      rating: document.getElementById('f_rating').value || '',
+      note: document.getElementById('f_note').value || '',
+      status: '',
+    };
+    statusEl.textContent = 'Salvataggio in corso...';
+    statusEl.className = 'modal-status';
+    document.getElementById('f_save').disabled = true;
+    try {
+      await ghUpdateCsv('films.csv', (rows) => rows.concat([newRow]),
+        `Aggiunge film: ${title}`, ['title', 'date_watched', 'rating', 'note', 'status']);
+      statusEl.textContent = 'Salvato! Ricarico la pagina...';
+      statusEl.className = 'modal-status success';
+      setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+      statusEl.textContent = e.message;
+      statusEl.className = 'modal-status error';
+      document.getElementById('f_save').disabled = false;
+    }
+  });
+}
+
+// ---- Modal: Aggiungi serie (nuova stagione) ----
+function openAddSeriesModal(prefillTitle) {
+  if (!requireGhOrPrompt()) return;
+  openModal(`
+    <h3>+ Aggiungi serie / stagione</h3>
+    <div class="modal-hint">Se il titolo esiste già, aggiunge una nuova stagione a quella serie.</div>
+    <div class="field"><label>Titolo *</label><input type="text" id="s_title" value="${escapeHtml(prefillTitle || '')}" /></div>
+    <div class="field"><label>Stagione *</label><input type="number" id="s_season" min="1" value="1" /></div>
+    <div class="field"><label>Episodi totali (opzionale)</label><input type="number" id="s_total" min="0" /></div>
+    <div class="field"><label>Episodi visti</label><input type="number" id="s_watched" min="0" value="0" /></div>
+    <div class="field"><label>Data ultima visione (opzionale)</label><input type="date" id="s_date" /></div>
+    <div class="modal-status" id="modalStatus"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn" id="s_save2">Salva su GitHub</button>
+    </div>
+  `);
+  document.getElementById('s_save2').addEventListener('click', async () => {
+    const title = document.getElementById('s_title').value.trim();
+    const statusEl = document.getElementById('modalStatus');
+    if (!title) {
+      statusEl.textContent = 'Il titolo è obbligatorio.';
+      statusEl.className = 'modal-status error';
+      return;
+    }
+    const newRow = {
+      title,
+      season: document.getElementById('s_season').value || '1',
+      total_episodes: document.getElementById('s_total').value || '',
+      watched_episodes: document.getElementById('s_watched').value || '0',
+      date_watched: document.getElementById('s_date').value || '',
+    };
+    statusEl.textContent = 'Salvataggio in corso...';
+    statusEl.className = 'modal-status';
+    document.getElementById('s_save2').disabled = true;
+    try {
+      await ghUpdateCsv('TVseries.csv', (rows) => rows.concat([newRow]),
+        `Aggiunge stagione ${newRow.season} di: ${title}`,
+        ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched']);
+      statusEl.textContent = 'Salvato! Ricarico la pagina...';
+      statusEl.className = 'modal-status success';
+      setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+      statusEl.textContent = e.message;
+      statusEl.className = 'modal-status error';
+      document.getElementById('s_save2').disabled = false;
+    }
+  });
+}
+
+// ---- Modal: Modifica film esistente ----
+function openEditFilmModal(item) {
+  if (!requireGhOrPrompt()) return;
+  openModal(`
+    <h3>✏️ Modifica "${escapeHtml(item.title)}"</h3>
+    <div class="field"><label>Titolo</label><input type="text" id="ef_title" value="${escapeHtml(item.title)}" disabled /></div>
+    <div class="field"><label>Data visione (vuoto = da vedere)</label><input type="date" id="ef_date" value="${escapeHtml(item.date_watched || '')}" /></div>
+    <div class="field"><label>Voto (opzionale)</label><input type="number" id="ef_rating" min="0" max="10" step="0.5" value="${escapeHtml(item.rating || '')}" /></div>
+    <div class="field"><label>Nota (opzionale)</label><input type="text" id="ef_note" value="${escapeHtml(item.note || '')}" /></div>
+    <div class="modal-status" id="modalStatus"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn" id="ef_save">Salva su GitHub</button>
+    </div>
+  `);
+  document.getElementById('ef_save').addEventListener('click', async () => {
+    const statusEl = document.getElementById('modalStatus');
+    const updated = {
+      date_watched: document.getElementById('ef_date').value || '',
+      rating: document.getElementById('ef_rating').value || '',
+      note: document.getElementById('ef_note').value || '',
+    };
+    statusEl.textContent = 'Salvataggio in corso...';
+    statusEl.className = 'modal-status';
+    document.getElementById('ef_save').disabled = true;
+    try {
+      await ghUpdateCsv('films.csv', (rows) => rows.map(r =>
+        (r.title || '').trim() === item.title.trim()
+          ? { ...r, date_watched: updated.date_watched, rating: updated.rating, note: updated.note }
+          : r
+      ), `Modifica film: ${item.title}`, ['title', 'date_watched', 'rating', 'note', 'status']);
+      statusEl.textContent = 'Salvato! Ricarico la pagina...';
+      statusEl.className = 'modal-status success';
+      setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+      statusEl.textContent = e.message;
+      statusEl.className = 'modal-status error';
+      document.getElementById('ef_save').disabled = false;
+    }
+  });
+}
+
+// ---- Modal: Modifica serie esistente (episodi per stagione) ----
+function openEditSeriesModal(item) {
+  if (!requireGhOrPrompt()) return;
+
+  if (!item.seasons || item.seasons.length === 0) {
+    // Nessuna stagione registrata ancora: reindirizza all'aggiunta con titolo precompilato
+    openAddSeriesModal(item.title);
+    return;
+  }
+
+  const rowsHtml = item.seasons.map((s, idx) => `
+    <div class="field" style="border-top:1px solid var(--border); padding-top:12px; margin-top:12px;">
+      <label>Stagione ${escapeHtml(String(s.season))}</label>
+      <div style="display:flex; gap:8px;">
+        <input type="number" min="0" placeholder="Ep. totali" data-idx="${idx}" class="es_total" value="${escapeHtml(s.total_episodes || '')}" />
+        <input type="number" min="0" placeholder="Ep. visti" data-idx="${idx}" class="es_watched" value="${escapeHtml(s.watched_episodes || '')}" />
+      </div>
+      <input type="date" data-idx="${idx}" class="es_date" value="${escapeHtml(s.date_watched || '')}" style="margin-top:6px;" />
+    </div>
+  `).join('');
+
+  openModal(`
+    <h3>✏️ Modifica "${escapeHtml(item.title)}"</h3>
+    ${rowsHtml}
+    <div class="modal-status" id="modalStatus"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn" id="es_save">Salva su GitHub</button>
+    </div>
+  `);
+
+  document.getElementById('es_save').addEventListener('click', async () => {
+    const statusEl = document.getElementById('modalStatus');
+    const edited = item.seasons.map((s, idx) => ({
+      season: s.season,
+      total_episodes: document.querySelector(`.es_total[data-idx="${idx}"]`).value || '',
+      watched_episodes: document.querySelector(`.es_watched[data-idx="${idx}"]`).value || '0',
+      date_watched: document.querySelector(`.es_date[data-idx="${idx}"]`).value || '',
+    }));
+
+    statusEl.textContent = 'Salvataggio in corso...';
+    statusEl.className = 'modal-status';
+    document.getElementById('es_save').disabled = true;
+    try {
+      await ghUpdateCsv('TVseries.csv', (rows) => rows.map(r => {
+        if ((r.title || '').trim() !== item.title.trim()) return r;
+        const match = edited.find(e => String(e.season) === String(r.season));
+        return match ? { ...r, ...match } : r;
+      }), `Modifica serie: ${item.title}`,
+        ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched']);
+      statusEl.textContent = 'Salvato! Ricarico la pagina...';
+      statusEl.className = 'modal-status success';
+      setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+      statusEl.textContent = e.message;
+      statusEl.className = 'modal-status error';
+      document.getElementById('es_save').disabled = false;
+    }
+  });
+}
+
+// ---- Modal: Conferma eliminazione ----
+function openDeleteModal(item) {
+  if (!requireGhOrPrompt()) return;
+  openModal(`
+    <h3>🗑️ Eliminare "${escapeHtml(item.title)}"?</h3>
+    <div class="modal-hint">
+      ${item.type === 'Serie'
+        ? 'Verranno eliminate tutte le stagioni salvate per questa serie.'
+        : 'Il film verrà rimosso dal file films.csv.'}
+      Questa azione modifica direttamente il repository GitHub.
+    </div>
+    <div class="modal-status" id="modalStatus"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn danger" id="d_confirm">Elimina</button>
+    </div>
+  `);
+  document.getElementById('d_confirm').addEventListener('click', async () => {
+    const statusEl = document.getElementById('modalStatus');
+    statusEl.textContent = 'Eliminazione in corso...';
+    statusEl.className = 'modal-status';
+    document.getElementById('d_confirm').disabled = true;
+    try {
+      if (item.type === 'Serie') {
+        await ghUpdateCsv('TVseries.csv',
+          (rows) => rows.filter(r => (r.title || '').trim() !== item.title.trim()),
+          `Elimina serie: ${item.title}`,
+          ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched']);
+      } else {
+        await ghUpdateCsv('films.csv',
+          (rows) => rows.filter(r => (r.title || '').trim() !== item.title.trim()),
+          `Elimina film: ${item.title}`,
+          ['title', 'date_watched', 'rating', 'note', 'status']);
+      }
+      statusEl.textContent = 'Eliminato! Ricarico la pagina...';
+      statusEl.className = 'modal-status success';
+      setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+      statusEl.textContent = e.message;
+      statusEl.className = 'modal-status error';
+      document.getElementById('d_confirm').disabled = false;
+    }
+  });
+}
+
+document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
+document.getElementById('addFilmBtn').addEventListener('click', openAddFilmModal);
+document.getElementById('addSeriesBtn').addEventListener('click', openAddSeriesModal);
+
+// Delega di eventi per i pulsanti "elimina" (funziona sia per #list che #todo-list,
+// generati dinamicamente, e per elementi ricreati a ogni render)
+document.addEventListener('click', (e) => {
+  const editBtn = e.target.closest('.edit-item-btn');
+  if (editBtn) {
+    const title = editBtn.dataset.title;
+    const type = editBtn.dataset.type;
+    const item = allData.find(i => i.title === title && i.type === type)
+      || todoData.find(i => i.title === title && i.type === type);
+    if (item) {
+      if (item.type === 'Serie') openEditSeriesModal(item);
+      else openEditFilmModal(item);
+    }
+    return;
+  }
+
+  const btn = e.target.closest('.delete-item-btn');
+  if (!btn) return;
+  const title = btn.dataset.title;
+  const type = btn.dataset.type;
+  const item = allData.find(i => i.title === title && i.type === type)
+    || todoData.find(i => i.title === title && i.type === type);
+  if (item) openDeleteModal(item);
+});
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function render() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const type = document.getElementById('filterType').value;
+  const sortBy = document.getElementById('sortBy').value;
+
+  let filtered = allData.filter(item => {
+    const matchSearch = item.title.toLowerCase().includes(search);
+    const matchType = !type || item.type === type;
+    return matchSearch && matchType;
+  });
+
+  filtered.sort((a, b) => {
+    switch (sortBy) {
+      case 'date_desc': return new Date(b.date_watched || 0) - new Date(a.date_watched || 0);
+      case 'date_asc': return new Date(a.date_watched || 0) - new Date(b.date_watched || 0);
+      case 'rating_desc': return parseFloat(b.rating || 0) - parseFloat(a.rating || 0);
+      case 'rating_asc': return parseFloat(a.rating || 0) - parseFloat(b.rating || 0);
+      case 'title_asc': return a.title.localeCompare(b.title);
+    }
+  });
+
+  const list = document.getElementById('list');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">Nessun risultato trovato.</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map((item, idx) => {
+    const hasSeasons = item.seasons && item.seasons.length > 0;
+    const rowId = 'seasons-' + idx;
+
+    let seasonsHtml = '';
+    if (hasSeasons) {
+      const rows = item.seasons.map(s => {
+        const total = parseInt(s.total_episodes) || 0;
+        const watched = Math.min(parseInt(s.watched_episodes) || 0, total || Infinity);
+        const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
+        return `
+          <div class="season-row">
+            <div class="season-label">Stagione ${escapeHtml(String(s.season))}</div>
+            <div class="season-bar-bg"><div class="season-bar-fill" style="width:${pct}%"></div></div>
+            <div class="season-count">${total ? watched + '/' + total : watched}</div>
+          </div>`;
+      }).join('');
+      seasonsHtml = `
+        <div class="seasons" id="${rowId}">
+          ${rows}
+          <div class="season-total">${item.note}</div>
+        </div>`;
+    }
+
+    return `
+    <div class="item">
+      <div class="item-row ${hasSeasons ? 'has-seasons' : ''}" ${hasSeasons ? `onclick="toggleSeasons('${rowId}', this)"` : ''}>
+        <div class="item-poster">
+          ${item.poster ? `<img src="${item.poster}" alt="" loading="lazy" />` : '<span class="placeholder">🎬</span>'}
+        </div>
+        <div class="item-main">
+          <div class="item-title-line">
+            ${hasSeasons ? '<span class="expand-arrow">▶</span>' : ''}
+            <span class="item-title">${escapeHtml(item.title)}</span>
+            <a class="wiki-link" href="${wikipediaUrl(item.title)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Wikipedia ↗</a>
+          </div>
+          ${(!hasSeasons && item.note) ? `<div class="item-note">${escapeHtml(item.note)}</div>` : ''}
+          <div class="item-actions">
+            <button class="mini-btn edit-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}" onclick="event.stopPropagation()">✏️ Modifica</button>
+            <button class="mini-btn delete-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}" onclick="event.stopPropagation()">🗑️ Elimina</button>
+          </div>
+        </div>
+        <div class="item-meta">
+          <span class="badge ${item.type}">${item.type}</span>
+          ${item.rating ? `<span class="rating">★ ${item.rating}</span>` : ''}
+          <span class="date">${item.date_watched || ''}</span>
+        </div>
+      </div>
+      ${seasonsHtml}
+    </div>`;
+  }).join('');
+
+  renderStats(allData);
+}
+
+function renderTodo() {
+  const search = document.getElementById('todo-search').value.toLowerCase();
+  const type = document.getElementById('todo-filterType').value;
+
+  let filtered = todoData.filter(item => {
+    const matchSearch = item.title.toLowerCase().includes(search);
+    const matchType = !type || item.type === type;
+    return matchSearch && matchType;
+  });
+  filtered.sort((a, b) => a.title.localeCompare(b.title));
+
+  document.getElementById('todo-count').textContent = `(${todoData.length})`;
+
+  const list = document.getElementById('todo-list');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">Niente da vedere per ora 🎉</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(item => `
+    <div class="todo-item">
+      <div class="todo-poster">
+        ${item.poster ? `<img src="${item.poster}" alt="" loading="lazy" />` : '<span class="placeholder">🎬</span>'}
+      </div>
+      <span class="todo-title">${escapeHtml(item.title)}</span>
+      <span class="badge ${item.type}">${item.type}</span>
+      <a class="wiki-link" href="${wikipediaUrl(item.title)}" target="_blank" rel="noopener">Wiki ↗</a>
+      <button class="mini-btn edit-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}">✏️</button>
+      <button class="mini-btn delete-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}">🗑️</button>
+    </div>
+  `).join('');
+}
+
+function toggleSeasons(rowId, rowEl) {
+  const el = document.getElementById(rowId);
+  const arrow = rowEl.querySelector('.expand-arrow');
+  el.classList.toggle('open');
+  if (arrow) arrow.classList.toggle('open');
+}
+
+function renderStats(data) {
+  const total = data.length;
+  const films = data.filter(d => d.type === 'Film').length;
+  const series = data.filter(d => d.type === 'Serie').length;
+  const rated = data.filter(d => d.rating);
+  const avgRating = rated.length ? (rated.reduce((s, d) => s + parseFloat(d.rating || 0), 0) / rated.length).toFixed(1) : '-';
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="label">Visti</div></div>
+    <div class="stat"><div class="num">${films}</div><div class="label">Film</div></div>
+    <div class="stat"><div class="num">${series}</div><div class="label">Serie</div></div>
+    <div class="stat"><div class="num">${avgRating}</div><div class="label">Voto medio</div></div>
+  `;
+}
+
+const ts = Date.now();
+
+function loadCsv(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file + '?t=' + ts, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => resolve(results.data),
+      error: (err) => reject(err)
+    });
+  });
+}
+
+Promise.all([
+  loadCsv('films.csv'),
+  loadCsv('TVseries.csv').catch(() => [])
+]).then(([filmRows, seasonRows]) => {
+  const validFilms = filmRows.filter(r => r.title);
+
+  // data.csv contiene solo film: il tipo è sempre 'Film', a prescindere
+  // da eventuali colonne di tipo/status presenti nel file, che vengono ignorate.
+  // Un film è "visto" se ha una data_watched valorizzata, altrimenti va tra i "da vedere".
+  const watchedFilms = validFilms.filter(r => (r.date_watched || '').trim() !== '').map(r => ({
+    title: r.title,
+    type: 'Film',
+    date_watched: r.date_watched,
+    rating: r.rating,
+    note: r.note,
+    seasons: null,
+    poster: null,
+  }));
+
+  const todoFilms = validFilms.filter(r => (r.date_watched || '').trim() === '').map(r => ({
+    title: r.title,
+    type: 'Film',
+    poster: null,
+  }));
+
+  // Serie: raggruppa seasons.csv per titolo
+  const byTitle = {};
+  seasonRows.filter(r => r.title).forEach(r => {
+    const key = r.title.trim();
+    if (!byTitle[key]) byTitle[key] = [];
+    byTitle[key].push(r);
+  });
+
+  const watchedSeries = [];
+  const todoSeries = [];
+
+  Object.entries(byTitle).forEach(([title, rows]) => {
+    rows.sort((a, b) => parseInt(a.season) - parseInt(b.season));
+    let totalEp = 0, watchedEp = 0, hasTotal = false;
+    rows.forEach(r => {
+      const t = parseInt(r.total_episodes) || 0;
+      const w = parseInt(r.watched_episodes) || 0;
+      if (t > 0) { totalEp += t; hasTotal = true; }
+      watchedEp += w;
+    });
+
+    if (watchedEp === 0) {
+      // nessun episodio visto in nessuna stagione -> da vedere
+      todoSeries.push({ title, type: 'Serie', poster: null });
+      return;
+    }
+
+    const date = rows.map(r => r.date_watched).filter(Boolean).sort().pop() || '';
+    const note = hasTotal ? `${watchedEp} / ${totalEp} episodi totali visti` : `${watchedEp} episodi visti`;
+    watchedSeries.push({
+      title,
+      type: 'Serie',
+      date_watched: date,
+      rating: '',
+      note,
+      seasons: rows,
+      poster: null,
+    });
+  });
+
+  allData = watchedFilms.concat(watchedSeries);
+  todoData = todoFilms.concat(todoSeries);
+
+  render();
+  renderTodo();
+
+  // Carica le locandine in background (usa la cache in localStorage se già presenti)
+  loadPostersFor(allData.concat(todoData));
+}).catch(err => {
+  document.getElementById('error').textContent = 'Errore nel caricamento dei CSV: ' + err.message;
+});
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('filterType').addEventListener('change', render);
+document.getElementById('sortBy').addEventListener('change', render);
+document.getElementById('todo-search').addEventListener('input', renderTodo);
+document.getElementById('todo-filterType').addEventListener('change', renderTodo);
+</script>
+</body>
+</html>
