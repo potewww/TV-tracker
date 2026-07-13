@@ -277,19 +277,22 @@ function setCachedPoster(key, url) {
 }
 
 async function fetchPosterUrl(item) {
-  if (!OMDB_API_KEY || OMDB_API_KEY.startsWith('INSERISCI')) return null;
+  if (!OMDB_API_KEY || OMDB_API_KEY.startsWith('INSERISCI')) return { retry: false, url: null };
   const kind = item.type === 'Serie' ? 'series' : 'movie';
   const endpoint = `https://www.omdbapi.com/?apikey=${OMDB_API_KEY}&type=${kind}&t=${encodeURIComponent(item.title)}`;
   try {
     const res = await fetch(endpoint);
-    if (!res.ok) return null;
+    if (!res.ok) return { retry: true, url: null }; // errore di rete/HTTP: da ritentare
     const data = await res.json();
     if (data.Response === 'True' && data.Poster && data.Poster !== 'N/A') {
-      return data.Poster;
+      return { retry: false, url: data.Poster };
     }
-    return null;
+    if (data.Error && /limit/i.test(data.Error)) {
+      return { retry: true, url: null }; // rate limit raggiunto: da ritentare più avanti
+    }
+    return { retry: false, url: null }; // film/serie genuinamente non trovato su OMDb
   } catch (e) {
-    return null;
+    return { retry: true, url: null }; // errore di rete: da ritentare
   }
 }
 
@@ -301,20 +304,27 @@ async function loadPostersFor(items) {
       const key = posterKey(item);
       const cached = getCachedPoster(key);
 
-      let url;
       if (cached !== undefined) {
-        url = cached; // può essere null se già cercata e non trovata
-      } else {
-        url = await fetchPosterUrl(item);
-        setCachedPoster(key, url);
+        // Già in cache: null = cercata in passato e genuinamente non trovata
+        if (cached) item.poster = cached;
+        return;
       }
 
-      if (url) item.poster = url;
+      const result = await fetchPosterUrl(item);
+      if (!result.retry) {
+        // Trovata, oppure genuinamente non trovata: salva in cache (anche se null)
+        setCachedPoster(key, result.url);
+      }
+      // Se result.retry è true, non salviamo nulla: verrà ritentata al prossimo caricamento
+      if (result.url) item.poster = result.url;
     }));
 
     // Ridisegna la lista a ogni lotto così le locandine compaiono progressivamente
     render();
     renderTodo();
+
+    // Piccola pausa tra i lotti per non stressare l'API
+    await new Promise(r => setTimeout(r, 150));
   }
 }
 
