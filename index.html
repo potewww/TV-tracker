@@ -183,7 +183,7 @@
 <body>
 <div class="wrap">
   <h1>📺 Cosa ho visto</h1>
-  <div class="subtitle">Film da <code>data.csv</code> · Serie da <code>seasons.csv</code></div>
+  <div class="subtitle">Film da <code>films.csv</code> · Serie da <code>TVseries.csv</code></div>
 
   <div class="stats" id="stats"></div>
 
@@ -374,8 +374,8 @@ function loadCsv(file) {
 }
 
 Promise.all([
-  loadCsv('data.csv'),
-  loadCsv('seasons.csv').catch(() => [])
+  loadCsv('films.csv'),
+  loadCsv('TVseries.csv').catch(() => [])
 ]).then(([filmRows, seasonRows]) => {
   const validFilms = filmRows.filter(r => r.title);
 
