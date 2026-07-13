@@ -257,7 +257,7 @@ let todoData = [];  // da vedere (film senza data, serie con 0 episodi visti)
 // ---- Locandine (OMDb) ----
 // Crea una API key gratuita su https://www.omdbapi.com/apikey.aspx (basta un'email)
 // e incollala qui sotto per abilitare le locandine.
-const OMDB_API_KEY = '995b45fd';
+const OMDB_API_KEY = 'INSERISCI_QUI_LA_TUA_OMDB_API_KEY';
 const OMDB_CACHE_PREFIX = 'poster_cache_omdb_v1:';
 
 function posterKey(item) {
@@ -294,25 +294,27 @@ async function fetchPosterUrl(item) {
 }
 
 async function loadPostersFor(items) {
-  for (const item of items) {
-    const key = posterKey(item);
-    const cached = getCachedPoster(key);
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const batch = items.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (item) => {
+      const key = posterKey(item);
+      const cached = getCachedPoster(key);
 
-    let url;
-    if (cached !== undefined) {
-      url = cached; // può essere null se già cercata e non trovata
-    } else {
-      url = await fetchPosterUrl(item);
-      setCachedPoster(key, url);
-    }
+      let url;
+      if (cached !== undefined) {
+        url = cached; // può essere null se già cercata e non trovata
+      } else {
+        url = await fetchPosterUrl(item);
+        setCachedPoster(key, url);
+      }
 
-    if (url) {
-      item.poster = url;
-      const escapedKey = CSS.escape(key);
-      document.querySelectorAll(`[data-poster-key="${escapedKey}"]`).forEach(el => {
-        el.innerHTML = `<img src="${url}" alt="" loading="lazy" />`;
-      });
-    }
+      if (url) item.poster = url;
+    }));
+
+    // Ridisegna la lista a ogni lotto così le locandine compaiono progressivamente
+    render();
+    renderTodo();
   }
 }
 
@@ -381,7 +383,7 @@ function render() {
     return `
     <div class="item">
       <div class="item-row ${hasSeasons ? 'has-seasons' : ''}" ${hasSeasons ? `onclick="toggleSeasons('${rowId}', this)"` : ''}>
-        <div class="item-poster" data-poster-key="${escapeHtml(posterKey(item))}">
+        <div class="item-poster">
           ${item.poster ? `<img src="${item.poster}" alt="" loading="lazy" />` : '<span class="placeholder">🎬</span>'}
         </div>
         <div class="item-main">
@@ -426,7 +428,7 @@ function renderTodo() {
 
   list.innerHTML = filtered.map(item => `
     <div class="todo-item">
-      <div class="todo-poster" data-poster-key="${escapeHtml(posterKey(item))}">
+      <div class="todo-poster">
         ${item.poster ? `<img src="${item.poster}" alt="" loading="lazy" />` : '<span class="placeholder">🎬</span>'}
       </div>
       <span class="todo-title">${escapeHtml(item.title)}</span>
