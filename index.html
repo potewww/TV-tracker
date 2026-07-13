@@ -95,6 +95,24 @@
     cursor: default;
   }
   .item-row.has-seasons { cursor: pointer; }
+  .item-poster {
+    width: 46px;
+    height: 69px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .item-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .item-poster .placeholder { font-size: 18px; opacity: 0.4; }
   .item-main { flex: 1; }
   .item-title-line { display: flex; align-items: center; gap: 8px; }
   .item-title { font-weight: 600; font-size: 16px; }
@@ -175,6 +193,19 @@
     font-size: 14px;
   }
   .todo-title { flex: 1; }
+  .todo-poster {
+    width: 28px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .todo-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .todo-poster .placeholder { font-size: 12px; opacity: 0.4; }
 
   .empty { text-align: center; color: var(--muted); padding: 40px 0; }
   #error { color: #ff7675; text-align: center; padding: 20px; }
@@ -222,6 +253,68 @@
 <script>
 let allData = [];   // visti (film + serie con almeno 1 episodio/visione)
 let todoData = [];  // da vedere (film senza data, serie con 0 episodi visti)
+
+// ---- Locandine (OMDb) ----
+// Crea una API key gratuita su https://www.omdbapi.com/apikey.aspx (basta un'email)
+// e incollala qui sotto per abilitare le locandine.
+const OMDB_API_KEY = '995b45fd';
+const OMDB_CACHE_PREFIX = 'poster_cache_omdb_v1:';
+
+function posterKey(item) {
+  return item.type + '|' + item.title;
+}
+
+function getCachedPoster(key) {
+  const raw = localStorage.getItem(OMDB_CACHE_PREFIX + key);
+  if (raw === null) return undefined; // mai cercata
+  try { return JSON.parse(raw); } catch { return undefined; }
+}
+
+function setCachedPoster(key, url) {
+  try {
+    localStorage.setItem(OMDB_CACHE_PREFIX + key, JSON.stringify(url));
+  } catch (e) { /* storage pieno o non disponibile: ignora */ }
+}
+
+async function fetchPosterUrl(item) {
+  if (!OMDB_API_KEY || OMDB_API_KEY.startsWith('INSERISCI')) return null;
+  const kind = item.type === 'Serie' ? 'series' : 'movie';
+  const endpoint = `https://www.omdbapi.com/?apikey=${OMDB_API_KEY}&type=${kind}&t=${encodeURIComponent(item.title)}`;
+  try {
+    const res = await fetch(endpoint);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.Response === 'True' && data.Poster && data.Poster !== 'N/A') {
+      return data.Poster;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function loadPostersFor(items) {
+  for (const item of items) {
+    const key = posterKey(item);
+    const cached = getCachedPoster(key);
+
+    let url;
+    if (cached !== undefined) {
+      url = cached; // può essere null se già cercata e non trovata
+    } else {
+      url = await fetchPosterUrl(item);
+      setCachedPoster(key, url);
+    }
+
+    if (url) {
+      item.poster = url;
+      const escapedKey = CSS.escape(key);
+      document.querySelectorAll(`[data-poster-key="${escapedKey}"]`).forEach(el => {
+        el.innerHTML = `<img src="${url}" alt="" loading="lazy" />`;
+      });
+    }
+  }
+}
 
 function wikipediaUrl(title) {
   const clean = title.trim().replace(/ /g, '_');
@@ -288,6 +381,9 @@ function render() {
     return `
     <div class="item">
       <div class="item-row ${hasSeasons ? 'has-seasons' : ''}" ${hasSeasons ? `onclick="toggleSeasons('${rowId}', this)"` : ''}>
+        <div class="item-poster" data-poster-key="${escapeHtml(posterKey(item))}">
+          ${item.poster ? `<img src="${item.poster}" alt="" loading="lazy" />` : '<span class="placeholder">🎬</span>'}
+        </div>
         <div class="item-main">
           <div class="item-title-line">
             ${hasSeasons ? '<span class="expand-arrow">▶</span>' : ''}
@@ -330,6 +426,9 @@ function renderTodo() {
 
   list.innerHTML = filtered.map(item => `
     <div class="todo-item">
+      <div class="todo-poster" data-poster-key="${escapeHtml(posterKey(item))}">
+        ${item.poster ? `<img src="${item.poster}" alt="" loading="lazy" />` : '<span class="placeholder">🎬</span>'}
+      </div>
       <span class="todo-title">${escapeHtml(item.title)}</span>
       <span class="badge ${item.type}">${item.type}</span>
       <a class="wiki-link" href="${wikipediaUrl(item.title)}" target="_blank" rel="noopener">Wiki ↗</a>
@@ -389,11 +488,13 @@ Promise.all([
     rating: r.rating,
     note: r.note,
     seasons: null,
+    poster: null,
   }));
 
   const todoFilms = validFilms.filter(r => (r.date_watched || '').trim() === '').map(r => ({
     title: r.title,
     type: 'Film',
+    poster: null,
   }));
 
   // Serie: raggruppa seasons.csv per titolo
@@ -419,7 +520,7 @@ Promise.all([
 
     if (watchedEp === 0) {
       // nessun episodio visto in nessuna stagione -> da vedere
-      todoSeries.push({ title, type: 'Serie' });
+      todoSeries.push({ title, type: 'Serie', poster: null });
       return;
     }
 
@@ -432,6 +533,7 @@ Promise.all([
       rating: '',
       note,
       seasons: rows,
+      poster: null,
     });
   });
 
@@ -440,6 +542,9 @@ Promise.all([
 
   render();
   renderTodo();
+
+  // Carica le locandine in background (usa la cache in localStorage se già presenti)
+  loadPostersFor(allData.concat(todoData));
 }).catch(err => {
   document.getElementById('error').textContent = 'Errore nel caricamento dei CSV: ' + err.message;
 });
