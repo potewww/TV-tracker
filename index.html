@@ -221,7 +221,7 @@
 
 <script>
 let allData = [];   // visti (film + serie con almeno 1 episodio/visione)
-let todoData = [];  // da vedere (film con status NV, serie con 0 episodi visti)
+let todoData = [];  // da vedere (film senza data, serie con 0 episodi visti)
 
 function wikipediaUrl(title) {
   const clean = title.trim().replace(/ /g, '_');
@@ -379,8 +379,10 @@ Promise.all([
 ]).then(([filmRows, seasonRows]) => {
   const validFilms = filmRows.filter(r => r.title);
 
-  // Film visti: status vuoto o diverso da NV
-  const watchedFilms = validFilms.filter(r => (r.status || '').trim().toUpperCase() !== 'NV').map(r => ({
+  // data.csv contiene solo film: il tipo è sempre 'Film', a prescindere
+  // da eventuali colonne di tipo/status presenti nel file, che vengono ignorate.
+  // Un film è "visto" se ha una data_watched valorizzata, altrimenti va tra i "da vedere".
+  const watchedFilms = validFilms.filter(r => (r.date_watched || '').trim() !== '').map(r => ({
     title: r.title,
     type: 'Film',
     date_watched: r.date_watched,
@@ -389,8 +391,7 @@ Promise.all([
     seasons: null,
   }));
 
-  // Film da vedere: status = NV
-  const todoFilms = validFilms.filter(r => (r.status || '').trim().toUpperCase() === 'NV').map(r => ({
+  const todoFilms = validFilms.filter(r => (r.date_watched || '').trim() === '').map(r => ({
     title: r.title,
     type: 'Film',
   }));
