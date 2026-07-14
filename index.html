@@ -352,7 +352,7 @@ let todoData = [];  // da vedere (film senza data, serie con 0 episodi visti)
 // ---- Locandine (OMDb) ----
 // Crea una API key gratuita su https://www.omdbapi.com/apikey.aspx (basta un'email)
 // e incollala qui sotto per abilitare le locandine.
-const OMDB_API_KEY = '995b45fd';
+const OMDB_API_KEY = 'INSERISCI_QUI_LA_TUA_OMDB_API_KEY';
 const OMDB_CACHE_PREFIX = 'poster_cache_omdb_v1:';
 
 function posterKey(item) {
@@ -913,7 +913,7 @@ function render() {
 
     return `
     <div class="item">
-      <div class="item-row ${hasSeasons ? 'has-seasons' : ''}" ${hasSeasons ? `onclick="toggleSeasons('${rowId}', this)"` : ''}>
+      <div class="item-row ${hasSeasons ? 'has-seasons' : ''}" ${hasSeasons ? `onclick="toggleSeasons('${rowId}', this, event)"` : ''}>
         <div class="item-poster">
           ${item.poster ? `<img src="${item.poster}" alt="" loading="lazy" />` : '<span class="placeholder">🎬</span>'}
         </div>
@@ -925,8 +925,8 @@ function render() {
           </div>
           ${(!hasSeasons && item.note) ? `<div class="item-note">${escapeHtml(item.note)}</div>` : ''}
           <div class="item-actions">
-            <button class="mini-btn edit-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}" onclick="event.stopPropagation()">✏️ Modifica</button>
-            <button class="mini-btn delete-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}" onclick="event.stopPropagation()">🗑️ Elimina</button>
+            <button class="mini-btn edit-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}">✏️ Modifica</button>
+            <button class="mini-btn delete-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}">🗑️ Elimina</button>
           </div>
         </div>
         <div class="item-meta">
@@ -975,7 +975,8 @@ function renderTodo() {
   `).join('');
 }
 
-function toggleSeasons(rowId, rowEl) {
+function toggleSeasons(rowId, rowEl, evt) {
+  if (evt && evt.target.closest('.item-actions, .wiki-link')) return;
   const el = document.getElementById(rowId);
   const arrow = rowEl.querySelector('.expand-arrow');
   el.classList.toggle('open');
