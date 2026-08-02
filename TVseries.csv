@@ -106,16 +106,16 @@ Monster Allergy,1,,0,
 NANA,1,47,47,2022-08-18
 Naruto,1,,0,
 Never Have I Ever,1,10,10,2022-08-18
-Nuova scena, 1,8,8
-Nuova scena, 2,8,8
-Nuova scena, 3,9,9
+Nuova scena," 1",8,8,
+Nuova scena," 2",8,8,
+Nuova scena," 3",9,9,
 Obi-Wan Kenobi,1,6,6,2022-08-22
 One of Us Is Lying,1,,0,
 Our Love Has Always Been 10 Centimeters Apart.,1,,0,
-Ozark,1,10,10, 2026-02
-Ozark,2,10,10, 2026-02
-Ozark,3,10,10, 2026-03
-Ozark,1,14,14, 2026-03
+Ozark,1,10,10," 2026-02"
+Ozark,2,10,10," 2026-02"
+Ozark,3,10,10," 2026-03"
+Ozark,1,14,14," 2026-03"
 Painkiller,1,6,6,2023-08-24
 Parasyte -the maxim-,1,24,24,2022-08-18
 Parenthood (IT),1,,0,
@@ -207,3 +207,4 @@ You,2,10,10,2023-04-17
 You,3,10,10,2023-04-17
 You,4,10,10,2023-04-17
 Your Lie in April,1,22,17,2022-08-18
+Chernobyl,1,5,5,
