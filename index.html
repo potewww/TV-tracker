@@ -588,7 +588,7 @@ function openAddFilmModal() {
     <div class="field"><label>Titolo *</label><input type="text" id="f_title" /></div>
     <div class="field"><label>Data visione (vuoto = da vedere)</label><input type="date" id="f_date" /></div>
     <div class="field"><label>Voto (opzionale)</label><input type="number" id="f_rating" min="0" max="10" step="0.5" /></div>
-    <div class="field"><label>Nota (opzionale)</label><input type="text" id="f_note" /></div>
+    <div class="field"><label>Recensione (opzionale)</label><input type="text" id="f_note" /></div>
     <div class="modal-status" id="modalStatus"></div>
     <div class="modal-actions">
       <button class="btn secondary" onclick="closeModal()">Annulla</button>
@@ -638,6 +638,9 @@ function openAddSeriesModal(prefillTitle) {
     <div class="field"><label>Episodi totali (opzionale)</label><input type="number" id="s_total" min="0" /></div>
     <div class="field"><label>Episodi visti</label><input type="number" id="s_watched" min="0" value="0" /></div>
     <div class="field"><label>Data ultima visione (opzionale)</label><input type="date" id="s_date" /></div>
+    <div class="field"><label>Voto complessivo della serie (opzionale)</label><input type="number" id="s_rating" min="0" max="10" step="0.5" /></div>
+    <div class="field"><label>Recensione (opzionale)</label><input type="text" id="s_note" /></div>
+    <div class="modal-hint">Se stai aggiungendo una stagione a una serie già votata/recensita, lascia vuoti questi campi per non toccare i valori esistenti.</div>
     <div class="modal-status" id="modalStatus"></div>
     <div class="modal-actions">
       <button class="btn secondary" onclick="closeModal()">Annulla</button>
@@ -652,20 +655,33 @@ function openAddSeriesModal(prefillTitle) {
       statusEl.className = 'modal-status error';
       return;
     }
+    const newRating = document.getElementById('s_rating').value || '';
+    const newNote = document.getElementById('s_note').value || '';
     const newRow = {
       title,
       season: document.getElementById('s_season').value || '1',
       total_episodes: document.getElementById('s_total').value || '',
       watched_episodes: document.getElementById('s_watched').value || '0',
       date_watched: document.getElementById('s_date').value || '',
+      rating: newRating,
+      note: newNote,
     };
     statusEl.textContent = 'Salvataggio in corso...';
     statusEl.className = 'modal-status';
     document.getElementById('s_save2').disabled = true;
     try {
-      await ghUpdateCsv('TVseries.csv', (rows) => rows.concat([newRow]),
+      // Se sono stati inseriti voto/recensione, li applichiamo a tutte le righe
+      // stagione esistenti di questa serie, così restano coerenti su ogni stagione.
+      await ghUpdateCsv('TVseries.csv', (rows) => {
+        const updated = (newRating || newNote)
+          ? rows.map(r => (r.title || '').trim() === title
+              ? { ...r, ...(newRating ? { rating: newRating } : {}), ...(newNote ? { note: newNote } : {}) }
+              : r)
+          : rows;
+        return updated.concat([newRow]);
+      },
         `Aggiunge stagione ${newRow.season} di: ${title}`,
-        ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched']);
+        ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched', 'rating', 'note']);
       statusEl.textContent = 'Salvato! Ricarico la pagina...';
       statusEl.className = 'modal-status success';
       setTimeout(() => location.reload(), 1200);
@@ -685,7 +701,7 @@ function openEditFilmModal(item) {
     <div class="field"><label>Titolo</label><input type="text" id="ef_title" value="${escapeHtml(item.title)}" disabled /></div>
     <div class="field"><label>Data visione (vuoto = da vedere)</label><input type="date" id="ef_date" value="${escapeHtml(item.date_watched || '')}" /></div>
     <div class="field"><label>Voto (opzionale)</label><input type="number" id="ef_rating" min="0" max="10" step="0.5" value="${escapeHtml(item.rating || '')}" /></div>
-    <div class="field"><label>Nota (opzionale)</label><input type="text" id="ef_note" value="${escapeHtml(item.note || '')}" /></div>
+    <div class="field"><label>Recensione (opzionale)</label><input type="text" id="ef_note" value="${escapeHtml(item.note || '')}" /></div>
     <div class="modal-status" id="modalStatus"></div>
     <div class="modal-actions">
       <button class="btn secondary" onclick="closeModal()">Annulla</button>
@@ -742,6 +758,8 @@ function openEditSeriesModal(item) {
 
   openModal(`
     <h3>✏️ Modifica "${escapeHtml(item.title)}"</h3>
+    <div class="field"><label>Voto complessivo della serie (opzionale)</label><input type="number" id="es_rating" min="0" max="10" step="0.5" value="${escapeHtml(item.rating || '')}" /></div>
+    <div class="field"><label>Recensione (opzionale)</label><input type="text" id="es_note" value="${escapeHtml(item.note || '')}" /></div>
     ${rowsHtml}
     <div class="modal-status" id="modalStatus"></div>
     <div class="modal-actions">
@@ -752,6 +770,8 @@ function openEditSeriesModal(item) {
 
   document.getElementById('es_save').addEventListener('click', async () => {
     const statusEl = document.getElementById('modalStatus');
+    const newRating = document.getElementById('es_rating').value || '';
+    const newNote = document.getElementById('es_note').value || '';
     const edited = item.seasons.map((s, idx) => ({
       season: s.season,
       total_episodes: document.querySelector(`.es_total[data-idx="${idx}"]`).value || '',
@@ -766,9 +786,13 @@ function openEditSeriesModal(item) {
       await ghUpdateCsv('TVseries.csv', (rows) => rows.map(r => {
         if ((r.title || '').trim() !== item.title.trim()) return r;
         const match = edited.find(e => String(e.season) === String(r.season));
-        return match ? { ...r, ...match } : r;
+        // Voto e recensione sono unici per la serie: li scriviamo su ogni riga
+        // stagione così che il primo valore non vuoto trovato in lettura sia coerente.
+        return match
+          ? { ...r, ...match, rating: newRating, note: newNote }
+          : { ...r, rating: newRating, note: newNote };
       }), `Modifica serie: ${item.title}`,
-        ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched']);
+        ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched', 'rating', 'note']);
       statusEl.textContent = 'Salvato! Ricarico la pagina...';
       statusEl.className = 'modal-status success';
       setTimeout(() => location.reload(), 1200);
@@ -807,7 +831,7 @@ function openDeleteModal(item) {
         await ghUpdateCsv('TVseries.csv',
           (rows) => rows.filter(r => (r.title || '').trim() !== item.title.trim()),
           `Elimina serie: ${item.title}`,
-          ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched']);
+          ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched', 'rating', 'note']);
       } else {
         await ghUpdateCsv('films.csv',
           (rows) => rows.filter(r => (r.title || '').trim() !== item.title.trim()),
@@ -907,7 +931,7 @@ function render() {
       seasonsHtml = `
         <div class="seasons" id="${rowId}">
           ${rows}
-          <div class="season-total">${item.note}</div>
+          <div class="season-total">${item.episodesSummary}</div>
         </div>`;
     }
 
@@ -923,7 +947,7 @@ function render() {
             <span class="item-title">${escapeHtml(item.title)}</span>
             <a class="wiki-link" href="${wikipediaUrl(item.title)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Wikipedia ↗</a>
           </div>
-          ${(!hasSeasons && item.note) ? `<div class="item-note">${escapeHtml(item.note)}</div>` : ''}
+          ${item.note ? `<div class="item-note">${escapeHtml(item.note)}</div>` : ''}
           <div class="item-actions">
             <button class="mini-btn edit-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}">✏️ Modifica</button>
             <button class="mini-btn delete-item-btn" data-title="${escapeHtml(item.title)}" data-type="${escapeHtml(item.type)}">🗑️ Elimina</button>
@@ -1065,13 +1089,18 @@ Promise.all([
     }
 
     const date = rows.map(r => r.date_watched).filter(Boolean).sort().pop() || '';
-    const note = hasTotal ? `${watchedEp} / ${totalEp} episodi totali visti` : `${watchedEp} episodi visti`;
+    const episodesSummary = hasTotal ? `${watchedEp} / ${totalEp} episodi totali visti` : `${watchedEp} episodi visti`;
+    // Voto e recensione sono unici per l'intera serie (non per singola stagione):
+    // prendiamo il primo valore non vuoto trovato tra le righe di TVseries.csv per quel titolo.
+    const rating = (rows.map(r => (r.rating || '').trim()).find(v => v !== '')) || '';
+    const note = (rows.map(r => (r.note || '').trim()).find(v => v !== '')) || '';
     watchedSeries.push({
       title,
       type: 'Serie',
       date_watched: date,
-      rating: '',
+      rating,
       note,
+      episodesSummary,
       seasons: rows,
       poster: null,
     });
