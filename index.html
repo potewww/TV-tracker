@@ -761,12 +761,47 @@ function openEditSeriesModal(item) {
     <div class="field"><label>Voto complessivo della serie (opzionale)</label><input type="number" id="es_rating" min="0" max="10" step="0.5" value="${escapeHtml(item.rating || '')}" /></div>
     <div class="field"><label>Recensione (opzionale)</label><input type="text" id="es_note" value="${escapeHtml(item.note || '')}" /></div>
     ${rowsHtml}
+    <div id="es_new_seasons"></div>
+    <button type="button" class="btn secondary" id="es_add_season" style="margin-top:12px; width:100%;">+ Aggiungi stagione</button>
     <div class="modal-status" id="modalStatus"></div>
     <div class="modal-actions">
       <button class="btn secondary" onclick="closeModal()">Annulla</button>
       <button class="btn" id="es_save">Salva su GitHub</button>
     </div>
   `);
+
+  // ---- Gestione blocchi per nuove stagioni aggiunte al volo ----
+  let esNewSeasonCounter = 0;
+
+  function esNewSeasonBlockHtml(nid, defaultSeason) {
+    return `
+      <div class="field es-new-block" data-nid="${nid}" style="border-top:1px solid var(--accent2); padding-top:12px; margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+          <label style="margin-bottom:0;">Nuova stagione</label>
+          <button type="button" class="mini-btn es-remove-new" data-nid="${nid}">🗑️ Rimuovi</button>
+        </div>
+        <input type="number" min="1" placeholder="Numero stagione" class="es_new_season" value="${defaultSeason}" />
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <input type="number" min="0" placeholder="Ep. totali" class="es_new_total" />
+          <input type="number" min="0" placeholder="Ep. visti" class="es_new_watched" value="0" />
+        </div>
+        <input type="date" class="es_new_date" style="margin-top:6px;" />
+      </div>`;
+  }
+
+  document.getElementById('es_add_season').addEventListener('click', () => {
+    esNewSeasonCounter++;
+    const existingMax = Math.max(0, ...item.seasons.map(s => parseInt(s.season) || 0));
+    const alreadyAdded = document.querySelectorAll('.es-new-block').length;
+    const defaultSeason = existingMax + alreadyAdded + 1;
+    document.getElementById('es_new_seasons').insertAdjacentHTML('beforeend', esNewSeasonBlockHtml(esNewSeasonCounter, defaultSeason));
+  });
+
+  document.getElementById('es_new_seasons').addEventListener('click', (e) => {
+    const rm = e.target.closest('.es-remove-new');
+    if (!rm) return;
+    document.querySelector(`.es-new-block[data-nid="${rm.dataset.nid}"]`).remove();
+  });
 
   document.getElementById('es_save').addEventListener('click', async () => {
     const statusEl = document.getElementById('modalStatus');
@@ -779,19 +814,40 @@ function openEditSeriesModal(item) {
       date_watched: document.querySelector(`.es_date[data-idx="${idx}"]`).value || '',
     }));
 
+    // Nuove stagioni inserite tramite "+ Aggiungi stagione": ignora i blocchi
+    // rimasti senza numero di stagione (non compilati).
+    const added = Array.from(document.querySelectorAll('.es-new-block')).map(block => ({
+      season: block.querySelector('.es_new_season').value || '',
+      total_episodes: block.querySelector('.es_new_total').value || '',
+      watched_episodes: block.querySelector('.es_new_watched').value || '0',
+      date_watched: block.querySelector('.es_new_date').value || '',
+    })).filter(b => b.season.trim() !== '');
+
+    const allSeasonNums = edited.map(e => String(e.season)).concat(added.map(a => String(a.season)));
+    const hasDuplicate = allSeasonNums.some((s, i) => allSeasonNums.indexOf(s) !== i);
+    if (hasDuplicate) {
+      statusEl.textContent = 'Hai inserito due volte lo stesso numero di stagione.';
+      statusEl.className = 'modal-status error';
+      return;
+    }
+
     statusEl.textContent = 'Salvataggio in corso...';
     statusEl.className = 'modal-status';
     document.getElementById('es_save').disabled = true;
     try {
-      await ghUpdateCsv('TVseries.csv', (rows) => rows.map(r => {
-        if ((r.title || '').trim() !== item.title.trim()) return r;
-        const match = edited.find(e => String(e.season) === String(r.season));
-        // Voto e recensione sono unici per la serie: li scriviamo su ogni riga
-        // stagione così che il primo valore non vuoto trovato in lettura sia coerente.
-        return match
-          ? { ...r, ...match, rating: newRating, note: newNote }
-          : { ...r, rating: newRating, note: newNote };
-      }), `Modifica serie: ${item.title}`,
+      await ghUpdateCsv('TVseries.csv', (rows) => {
+        const mapped = rows.map(r => {
+          if ((r.title || '').trim() !== item.title.trim()) return r;
+          const match = edited.find(e => String(e.season) === String(r.season));
+          // Voto e recensione sono unici per la serie: li scriviamo su ogni riga
+          // stagione così che il primo valore non vuoto trovato in lettura sia coerente.
+          return match
+            ? { ...r, ...match, rating: newRating, note: newNote }
+            : { ...r, rating: newRating, note: newNote };
+        });
+        const addedRows = added.map(a => ({ title: item.title, ...a, rating: newRating, note: newNote }));
+        return mapped.concat(addedRows);
+      }, `Modifica serie: ${item.title}`,
         ['title', 'season', 'total_episodes', 'watched_episodes', 'date_watched', 'rating', 'note']);
       statusEl.textContent = 'Salvato! Ricarico la pagina...';
       statusEl.className = 'modal-status success';
